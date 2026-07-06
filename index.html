@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Directivitat — simulador de micròfon</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #12151a;
+    --panel-edge: #1c2129;
+    --grid: #1e242d;
+    --text: #c9d1d9;
+    --text-dim: #6b7683;
+    --src-a: #ffb454;
+    --src-b: #4fd6ce;
+    --mic: #e8ecf1;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+
+  /* ---------- barra superior ---------- */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--panel-edge);
+    flex: 0 0 auto;
+  }
+  header h1 {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  header .sub { font-size: 12px; color: var(--text-dim); }
+  #topBtns { margin-left: auto; display: flex; gap: 8px; }
+  .topBtn {
+    background: transparent;
+    border: 1px solid var(--panel-edge);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .topBtn:hover { border-color: var(--text-dim); }
+  #audioBtn.on { border-color: var(--src-b); color: var(--src-b); }
+
+  /* ---------- estructura ---------- */
+  #main { flex: 1 1 0; display: flex; min-height: 0; }
+  #controls {
+    flex: 0 0 118px;
+    border-right: 1px solid var(--panel-edge);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 26px;
+    padding: 12px 6px;
+  }
+  .knobBlock { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .knobBlock .lbl {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    text-align: center;
+  }
+  .knobBlock .val {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    color: var(--text);
+    min-height: 14px;
+    text-align: center;
+  }
+  .knob { cursor: ns-resize; touch-action: none; }
+
+  #sceneWrap { flex: 1 1 0; position: relative; min-width: 0; }
+  canvas { display: block; }
+  #hint {
+    position: absolute;
+    bottom: 8px;
+    left: 12px;
+    font-size: 11px;
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+
+  /* ---------- zoom ---------- */
+  #zoomCtl {
+    position: absolute;
+    right: 12px;
+    bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  #zoomCtl button {
+    width: 30px; height: 30px;
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    color: var(--text);
+    font-size: 16px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  #zoomCtl button:hover { border-color: var(--text-dim); }
+  #zoomLbl {
+    font-family: ui-monospace, monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  #chartWrap {
+    flex: 0 0 32%;
+    border-top: 1px solid var(--panel-edge);
+    position: relative;
+    background: var(--panel);
+    min-height: 120px;
+  }
+
+  /* ---------- modal instruccions ---------- */
+  #overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(4,5,7,0.72);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+  }
+  #overlay.open { display: flex; }
+  #modal {
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: 10px;
+    max-width: 640px;
+    width: calc(100% - 40px);
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 26px 30px;
+    line-height: 1.55;
+    font-size: 14px;
+    touch-action: pan-y;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  #modal h2 {
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 22px 0 10px;
+  }
+  #modal h2:first-child { margin-top: 0; }
+  #modal p { margin: 0 0 10px; color: var(--text); }
+  #modal em { color: var(--src-a); font-style: normal; }
+  #modal .b { color: var(--src-b); }
+  #modalClose {
+    display: block;
+    margin: 18px auto 0;
+    background: transparent;
+    border: 1px solid var(--panel-edge);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    padding: 7px 22px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  #modalClose:hover { border-color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Directivitat</h1>
+  <span class="sub">simulador de micròfon · amanyosa.cat</span>
+  <div id="topBtns">
+    <button class="topBtn" id="helpBtn" title="Instruccions">?</button>
+    <button class="topBtn" id="mailBtn" title="Contacte">✉</button>
+    <button class="topBtn" id="audioBtn" title="Activa el so">🔇 So</button>
+  </div>
+</header>
+
+<div id="main">
+  <div id="controls">
+    <div class="knobBlock">
+      <svg class="knob" id="knobA" width="64" height="64" viewBox="0 0 64 64"></svg>
+      <div class="lbl" style="color:var(--src-a)">Font A</div>
+      <div class="val" id="valA">off</div>
+    </div>
+    <div class="knobBlock">
+      <svg class="knob" id="knobB" width="64" height="64" viewBox="0 0 64 64"></svg>
+      <div class="lbl" style="color:var(--src-b)">Font B</div>
+      <div class="val" id="valB">off</div>
+    </div>
+    <div class="knobBlock">
+      <svg class="knob" id="knobP" width="64" height="64" viewBox="0 0 64 64"></svg>
+      <div class="lbl">Patró polar</div>
+      <div class="val" id="valP">Cardioide</div>
+    </div>
+  </div>
+
+  <div id="sceneWrap">
+    <canvas id="scene"></canvas>
+    <div id="hint">Arrossega les fonts · gira el micròfon amb el punt blanc · roda o pinça per fer zoom</div>
+    <div id="zoomCtl">
+      <button id="zoomIn" title="Apropa">+</button>
+      <button id="zoomOut" title="Allunya">−</button>
+      <div id="zoomLbl">4.0 m</div>
+    </div>
+  </div>
+</div>
+
+<div id="chartWrap">
+  <canvas id="chart"></canvas>
+</div>
+
+<div id="overlay">
+  <div id="modal">
+    <h2>Com funciona l'aplicatiu</h2>
+    <p><em>Fonts sonores.</em> Arrossega les fonts <em>A</em> i <span class="b">B</span> per l'escena per canviar-ne la posició respecte al micròfon. Els dos potenciòmetres de l'esquerra en controlen el volum (arrossega verticalment); comencen a zero. La font A emet un to greu (220 Hz) i la B un d'agut (660 Hz).</p>
+    <p><em>Micròfon.</em> És al centre, representat pel seu diagrama polar. Pots girar-lo arrossegant el punt blanc de l'eix. El potenciòmetre inferior selecciona el patró polar entre cinc opcions: omnidireccional, cardioide, supercardioide, hipercardioide i figura 8.</p>
+    <p><em>Vista.</em> Fes zoom amb la roda del ratolí, amb pinça (tàctil) o amb els botons + / −. L'indicador mostra l'amplada visible de l'escena en metres.</p>
+    <p><em>Gràfica.</em> La part inferior mostra el nivell captat de cada font durant els últims 10 segons, en dB.</p>
+
+    <h2>La física al darrere</h2>
+    <p><em>Llei de l'invers del quadrat.</em> El so es propaga en esfera: en allunyar-nos d'una font, la mateixa energia es reparteix sobre una superfície cada cop més gran. El resultat pràctic és que cada vegada que es dobla la distància, el nivell captat cau 6 dB. Ho pots comprovar movent una font de 0,5 m a 1 m, i de 1 m a 2 m: la caiguda a la gràfica és la mateixa.</p>
+    <p><em>Patró polar.</em> El diagrama del centre indica la sensibilitat del micròfon segons l'angle d'arribada del so. Un omnidireccional capta igual des de tot arreu; un cardioide atenua el so que arriba per darrere; supercardioide i hipercardioide són més estrets al davant però recuperen un petit lòbul posterior; la figura 8 capta pel davant i pel darrere i rebutja completament els laterals.</p>
+    <p><em>Incidència en la captació.</em> El nivell final de cada font és la combinació dels dos efectes: distància i angle. Una font propera però situada en un nul del patró pot captar-se més fluixa que una font llunyana situada a l'eix. Juga amb la posició de les dues fonts i el patró per veure com un mateix moviment pot tenir efectes molt diferents segons el micròfon triat.</p>
+
+    <button id="modalClose">Tanca</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ================= PARÀMETRES AJUSTABLES ================= */
+let   VIEW_METERS  = 4;      // amplada visible inicial de l'escena (zoom)
+const VIEW_MIN     = 2;      // zoom màxim (amplada mínima visible)
+const VIEW_MAX     = 12;     // zoom mínim (amplada màxima visible)
+const REF_DIST     = 0.5;    // distància de referència (0 dB de caiguda) en m
+const MIN_DIST     = 0.2;    // distància mínima simulada en m
+const CHART_SECONDS = 10;    // finestra temporal de la gràfica
+const DB_MIN = -48, DB_MAX = 0; // rang de la gràfica en dB
+const FREQ_A = 220, FREQ_B = 660; // sons fixos de cada font (Hz)
+const PATTERN_SMOOTH = 6;    // velocitat de transició entre patrons (més alt = més ràpid)
+/* correu de contacte (ofuscat, es munta en fer clic) */
+const MAIL_USER = "contacte", MAIL_DOMAIN = "amanyosa.cat";
+/* ========================================================= */
+
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const COL = { a: cssVar('--src-a'), b: cssVar('--src-b'), mic: cssVar('--mic'),
+              grid: cssVar('--grid'), dim: cssVar('--text-dim'), text: cssVar('--text') };
+
+/* ---------- Estat ---------- */
+const state = {
+  micAngle: -Math.PI / 2,
+  patternIdx: 1,          // pas seleccionat (0..4)
+  patternAcur: 0.5,       // valor A animat (el que es dibuixa i sona)
+  sources: [
+    { id: 'A', color: COL.a, vol: 0, x: -1.2, y: -0.8, freq: FREQ_A, level: -Infinity },
+    { id: 'B', color: COL.b, vol: 0, x:  1.3, y:  0.6, freq: FREQ_B, level: -Infinity },
+  ],
+};
+
+/* Patrons per passos: factor A del model g(θ) = |A + (1-A)·cosθ| */
+const PATTERNS = [
+  { A: 1.0,   name: 'Omnidireccional' },
+  { A: 0.5,   name: 'Cardioide' },
+  { A: 0.366, name: 'Supercardioide' },
+  { A: 0.25,  name: 'Hipercardioide' },
+  { A: 0.0,   name: 'Figura 8' },
+];
+const patternGain = th => Math.abs(state.patternAcur + (1 - state.patternAcur) * Math.cos(th));
+
+/* ---------- Àudio ---------- */
+let audio = null;
+const audioBtn = document.getElementById('audioBtn');
+function initAudio() {
+  if (audio) { audio.ctx.resume(); markAudioOn(); return; }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = ctx.createGain();
+  master.gain.value = 0.6;
+  master.connect(ctx.destination);
+  audio = { ctx, master, nodes: [] };
+  for (const s of state.sources) {
+    const osc = ctx.createOscillator();
+    osc.type = s.id === 'A' ? 'triangle' : 'sine';
+    osc.frequency.value = s.freq;
+    const g = ctx.createGain();
+    g.gain.value = 0;
+    osc.connect(g).connect(master);
+    osc.start();
+    audio.nodes.push(g);
+  }
+  markAudioOn();
+}
+function markAudioOn() {
+  audioBtn.classList.add('on');
+  audioBtn.textContent = '🔊 So';
+}
+audioBtn.addEventListener('click', initAudio);
+
+/* ---------- Barra superior: contacte i instruccions ---------- */
+document.getElementById('mailBtn').addEventListener('click', () => {
+  location.href = 'mailto:' + MAIL_USER + '@' + MAIL_DOMAIN;
+});
+const overlay = document.getElementById('overlay');
+document.getElementById('helpBtn').addEventListener('click', () => overlay.classList.add('open'));
+document.getElementById('modalClose').addEventListener('click', () => overlay.classList.remove('open'));
+overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+window.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.classList.remove('open'); });
+
+/* ---------- Física: guany de cada font ---------- */
+function computeLevels() {
+  state.sources.forEach((s, i) => {
+    const d = Math.max(MIN_DIST, Math.hypot(s.x, s.y));
+    const th = Math.atan2(s.y, s.x) - state.micAngle;
+    const g = s.vol * patternGain(th) * (REF_DIST / d); // amplitud ~ 1/d → -6 dB per doblatge
+    s.level = g > 1e-6 ? 20 * Math.log10(g) : -Infinity;
+    if (audio) {
+      audio.nodes[i].gain.setTargetAtTime(Math.min(1, g), audio.ctx.currentTime, 0.05);
+    }
+  });
+}
+
+/* ---------- Knobs ---------- */
+function makeKnob(svgId, getV, setV, opts = {}) {
+  const svg = document.getElementById(svgId);
+  const NS = 'http://www.w3.org/2000/svg';
+  const A0 = 0.75 * Math.PI, SPAN = 1.5 * Math.PI, R = 24, C = 32;
+  const pt = (a, r = R) => [C + r * Math.cos(a), C + r * Math.sin(a)];
+
+  // marques de detent (per al knob de patró)
+  if (opts.steps) {
+    for (let i = 0; i < opts.steps; i++) {
+      const a = A0 + SPAN * (i / (opts.steps - 1));
+      const [x0, y0] = pt(a, R + 4), [x1, y1] = pt(a, R + 8);
+      const tick = document.createElementNS(NS, 'line');
+      tick.setAttribute('x1', x0); tick.setAttribute('y1', y0);
+      tick.setAttribute('x2', x1); tick.setAttribute('y2', y1);
+      tick.setAttribute('stroke', COL.dim);
+      tick.setAttribute('stroke-width', '1.5');
+      svg.appendChild(tick);
+    }
+  }
+
+  const track = document.createElementNS(NS, 'path');
+  const arc = document.createElementNS(NS, 'path');
+  const dot = document.createElementNS(NS, 'circle');
+  track.setAttribute('stroke', COL.grid); arc.setAttribute('stroke', COL.text);
+  for (const p of [track, arc]) {
+    p.setAttribute('fill', 'none');
+    p.setAttribute('stroke-width', '4');
+    p.setAttribute('stroke-linecap', 'round');
+    svg.appendChild(p);
+  }
+  dot.setAttribute('r', '3.5'); dot.setAttribute('fill', COL.text);
+  svg.appendChild(dot);
+
+  const arcPath = (a0, a1) => {
+    const [x0, y0] = pt(a0), [x1, y1] = pt(a1);
+    return `M ${x0} ${y0} A ${R} ${R} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${x1} ${y1}`;
+  };
+  track.setAttribute('d', arcPath(A0, A0 + SPAN));
+
+  function draw() {
+    const v = getV();
+    const a = A0 + SPAN * v;
+    arc.setAttribute('d', v > 0.004 ? arcPath(A0, a) : '');
+    const [dx, dy] = pt(a);
+    dot.setAttribute('cx', dx); dot.setAttribute('cy', dy);
+  }
+
+  let dragging = false, lastY = 0, raw = getV();
+  svg.addEventListener('pointerdown', e => {
+    dragging = true; lastY = e.clientY; raw = getV();
+    svg.setPointerCapture(e.pointerId);
+    initAudio();
+  });
+  svg.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    raw = Math.max(0, Math.min(1, raw + (lastY - e.clientY) / 150));
+    lastY = e.clientY;
+    if (opts.steps) {
+      // detent: salta al pas més proper
+      const step = Math.round(raw * (opts.steps - 1)) / (opts.steps - 1);
+      setV(step);
+    } else {
+      setV(raw);
+    }
+    draw();
+  });
+  svg.addEventListener('pointerup', () => dragging = false);
+  draw();
+  return { draw };
+}
+
+const valA = document.getElementById('valA');
+const valB = document.getElementById('valB');
+const valP = document.getElementById('valP');
+const fmtVol = v => v < 0.005 ? 'off' : `${Math.round(v * 100)} %`;
+
+makeKnob('knobA', () => state.sources[0].vol, v => { state.sources[0].vol = v; valA.textContent = fmtVol(v); });
+makeKnob('knobB', () => state.sources[1].vol, v => { state.sources[1].vol = v; valB.textContent = fmtVol(v); });
+makeKnob('knobP',
+  () => state.patternIdx / (PATTERNS.length - 1),
+  v => {
+    state.patternIdx = Math.round(v * (PATTERNS.length - 1));
+    valP.textContent = PATTERNS[state.patternIdx].name;
+  },
+  { steps: PATTERNS.length }
+);
+
+/* ---------- Escena ---------- */
+const scene = document.getElementById('scene');
+const sceneWrap = document.getElementById('sceneWrap');
+const sctx = scene.getContext('2d');
+const zoomLbl = document.getElementById('zoomLbl');
+let W = 0, H = 0, DPR = 1, SCALE = 100;
+
+function resizeScene() {
+  DPR = window.devicePixelRatio || 1;
+  W = sceneWrap.clientWidth; H = sceneWrap.clientHeight;
+  scene.width = W * DPR; scene.height = H * DPR;
+  scene.style.width = W + 'px'; scene.style.height = H + 'px';
+  updateScale();
+}
+function updateScale() {
+  SCALE = W / VIEW_METERS;
+  zoomLbl.textContent = VIEW_METERS.toFixed(1) + ' m';
+}
+function setZoom(m) {
+  VIEW_METERS = Math.max(VIEW_MIN, Math.min(VIEW_MAX, m));
+  updateScale();
+}
+document.getElementById('zoomIn').addEventListener('click', () => setZoom(VIEW_METERS / 1.25));
+document.getElementById('zoomOut').addEventListener('click', () => setZoom(VIEW_METERS * 1.25));
+sceneWrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  setZoom(VIEW_METERS * Math.exp(e.deltaY * 0.0012));
+}, { passive: false });
+
+const toPx = (x, y) => [W / 2 + x * SCALE, H / 2 + y * SCALE];
+const toM  = (px, py) => [(px - W / 2) / SCALE, (py - H / 2) / SCALE];
+
+const DIAG_R = 0.55; // radi màxim del diagrama polar en metres
+
+function drawScene() {
+  sctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  sctx.clearRect(0, 0, W, H);
+
+  // graella de distàncies
+  const [cx, cy] = toPx(0, 0);
+  const step = SCALE < 55 ? 1 : 0.5; // menys cercles quan estem allunyats
+  sctx.strokeStyle = COL.grid;
+  sctx.fillStyle = COL.dim;
+  sctx.font = '10px ui-monospace, monospace';
+  sctx.lineWidth = 1;
+  for (let r = step; r * SCALE < Math.hypot(W, H); r += step) {
+    sctx.beginPath();
+    sctx.arc(cx, cy, r * SCALE, 0, 2 * Math.PI);
+    sctx.stroke();
+    if (Number.isInteger(r)) sctx.fillText(r + ' m', cx + r * SCALE + 4, cy - 4);
+  }
+
+  // diagrama polar (usa el valor animat patternAcur)
+  sctx.beginPath();
+  for (let i = 0; i <= 240; i++) {
+    const th = (i / 240) * 2 * Math.PI;
+    const r = DIAG_R * patternGain(th) * SCALE;
+    const px = cx + r * Math.cos(th + state.micAngle);
+    const py = cy + r * Math.sin(th + state.micAngle);
+    i === 0 ? sctx.moveTo(px, py) : sctx.lineTo(px, py);
+  }
+  sctx.closePath();
+  sctx.fillStyle = 'rgba(232,236,241,0.07)';
+  sctx.fill();
+  sctx.strokeStyle = COL.mic;
+  sctx.lineWidth = 1.5;
+  sctx.stroke();
+
+  // eix + nansa de rotació
+  const hx = cx + (DIAG_R + 0.18) * SCALE * Math.cos(state.micAngle);
+  const hy = cy + (DIAG_R + 0.18) * SCALE * Math.sin(state.micAngle);
+  sctx.strokeStyle = COL.dim;
+  sctx.setLineDash([3, 4]);
+  sctx.beginPath(); sctx.moveTo(cx, cy); sctx.lineTo(hx, hy); sctx.stroke();
+  sctx.setLineDash([]);
+  sctx.fillStyle = COL.mic;
+  sctx.beginPath(); sctx.arc(hx, hy, 6, 0, 2 * Math.PI); sctx.fill();
+
+  // cos del micròfon
+  sctx.beginPath(); sctx.arc(cx, cy, 7, 0, 2 * Math.PI); sctx.fill();
+
+  // fonts
+  for (const s of state.sources) {
+    const [px, py] = toPx(s.x, s.y);
+    sctx.strokeStyle = s.color + '44';
+    sctx.lineWidth = 1;
+    sctx.beginPath(); sctx.moveTo(px, py); sctx.lineTo(cx, cy); sctx.stroke();
+    if (s.vol > 0.005) {
+      const pulse = 14 + 6 * Math.sin(performance.now() / 220) * s.vol;
+      sctx.strokeStyle = s.color + '66';
+      sctx.beginPath(); sctx.arc(px, py, pulse, 0, 2 * Math.PI); sctx.stroke();
+    }
+    sctx.fillStyle = s.color;
+    sctx.beginPath(); sctx.arc(px, py, 11, 0, 2 * Math.PI); sctx.fill();
+    sctx.fillStyle = '#0b0d10';
+    sctx.font = 'bold 11px system-ui';
+    sctx.textAlign = 'center'; sctx.textBaseline = 'middle';
+    sctx.fillText(s.id, px, py + 0.5);
+    sctx.textAlign = 'left'; sctx.textBaseline = 'alphabetic';
+    const d = Math.max(MIN_DIST, Math.hypot(s.x, s.y));
+    sctx.fillStyle = COL.dim;
+    sctx.font = '10px ui-monospace, monospace';
+    sctx.fillText(d.toFixed(2) + ' m', px + 14, py - 12);
+  }
+}
+
+/* ---------- Interacció a l'escena (arrossegar + pinça) ---------- */
+let drag = null;                 // { type:'src', src } | { type:'rot' }
+const pointers = new Map();      // pinça tàctil
+let pinchDist = 0;
+
+scene.addEventListener('pointerdown', e => {
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 2) {
+    drag = null; // cancel·la arrossegament: passem a pinça
+    const [p1, p2] = [...pointers.values()];
+    pinchDist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+    return;
+  }
+  const r = scene.getBoundingClientRect();
+  const px = e.clientX - r.left, py = e.clientY - r.top;
+  const [cx, cy] = toPx(0, 0);
+  const hx = cx + (DIAG_R + 0.18) * SCALE * Math.cos(state.micAngle);
+  const hy = cy + (DIAG_R + 0.18) * SCALE * Math.sin(state.micAngle);
+  if (Math.hypot(px - hx, py - hy) < 16) {
+    drag = { type: 'rot' };
+  } else {
+    for (const s of state.sources) {
+      const [sx, sy] = toPx(s.x, s.y);
+      if (Math.hypot(px - sx, py - sy) < 20) { drag = { type: 'src', src: s }; break; }
+    }
+  }
+  if (drag) scene.setPointerCapture(e.pointerId);
+});
+scene.addEventListener('pointermove', e => {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 2) {
+    const [p1, p2] = [...pointers.values()];
+    const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+    if (pinchDist > 0) setZoom(VIEW_METERS * pinchDist / d);
+    pinchDist = d;
+    return;
+  }
+  if (!drag) return;
+  const r = scene.getBoundingClientRect();
+  const [mx, my] = toM(e.clientX - r.left, e.clientY - r.top);
+  if (drag.type === 'rot') {
+    state.micAngle = Math.atan2(my, mx);
+  } else {
+    const lim = VIEW_MAX;
+    drag.src.x = Math.max(-lim, Math.min(lim, mx));
+    drag.src.y = Math.max(-lim, Math.min(lim, my));
+  }
+});
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinchDist = 0;
+  if (pointers.size === 0) drag = null;
+}
+scene.addEventListener('pointerup', endPointer);
+scene.addEventListener('pointercancel', endPointer);
+
+/* ---------- Gràfica temporal ---------- */
+const chart = document.getElementById('chart');
+const chartWrap = document.getElementById('chartWrap');
+const cctx = chart.getContext('2d');
+let CW = 0, CH = 0;
+function resizeChart() {
+  CW = chartWrap.clientWidth; CH = chartWrap.clientHeight;
+  chart.width = CW * DPR; chart.height = CH * DPR;
+  chart.style.width = CW + 'px'; chart.style.height = CH + 'px';
+}
+const history = [[], []];
+
+function pushSamples(now) {
+  state.sources.forEach((s, i) => {
+    history[i].push({ t: now, db: s.level });
+    while (history[i].length && history[i][0].t < now - CHART_SECONDS * 1000) history[i].shift();
+  });
+}
+
+function drawChart(now) {
+  cctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  cctx.clearRect(0, 0, CW, CH);
+  const padL = 46, padR = 14, padT = 10, padB = 20;
+  const gw = CW - padL - padR, gh = CH - padT - padB;
+  const yOf = db => padT + gh * (1 - (Math.max(DB_MIN, Math.min(DB_MAX, db)) - DB_MIN) / (DB_MAX - DB_MIN));
+  const xOf = t => padL + gw * (1 - (now - t) / (CHART_SECONDS * 1000));
+
+  cctx.strokeStyle = COL.grid;
+  cctx.fillStyle = COL.dim;
+  cctx.font = '10px ui-monospace, monospace';
+  cctx.lineWidth = 1;
+  for (let db = DB_MAX; db >= DB_MIN; db -= 6) {
+    const y = yOf(db);
+    cctx.beginPath(); cctx.moveTo(padL, y); cctx.lineTo(CW - padR, y); cctx.stroke();
+    cctx.fillText(`${db} dB`, 6, y + 3);
+  }
+  for (let s = 0; s <= CHART_SECONDS; s += 2) {
+    const x = xOf(now - s * 1000);
+    cctx.fillText(s === 0 ? 'ara' : `-${s} s`, x - 8, CH - 6);
+  }
+
+  state.sources.forEach((s, i) => {
+    const h = history[i];
+    if (h.length < 2) return;
+    cctx.strokeStyle = s.color;
+    cctx.lineWidth = 1.8;
+    cctx.beginPath();
+    let started = false;
+    for (const p of h) {
+      if (p.db === -Infinity) { started = false; continue; }
+      const x = xOf(p.t), y = yOf(p.db);
+      started ? cctx.lineTo(x, y) : cctx.moveTo(x, y);
+      started = true;
+    }
+    cctx.stroke();
+    const label = s.level === -Infinity ? '—' : s.level.toFixed(1) + ' dB';
+    cctx.fillStyle = s.color;
+    cctx.font = 'bold 12px ui-monospace, monospace';
+    cctx.fillText(`Font ${s.id}  ${label}`, padL + 8 + i * 150, padT + 14);
+  });
+}
+
+/* ---------- Bucle ---------- */
+function resizeAll() { resizeScene(); resizeChart(); }
+window.addEventListener('resize', resizeAll);
+resizeAll();
+
+let lastSample = 0, lastT = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+  // transició suau del patró cap al pas seleccionat
+  const target = PATTERNS[state.patternIdx].A;
+  state.patternAcur += (target - state.patternAcur) * Math.min(1, dt * PATTERN_SMOOTH);
+
+  computeLevels();
+  if (now - lastSample > 33) { pushSamples(now); lastSample = now; }
+  drawScene();
+  drawChart(now);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -17,7 +17,7 @@ jobs:
           server: amanyosa.cat
           username: amanyosad9
           password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
+          protocol: ftp
           server-dir: /web/directivitat/
           exclude: |
             **/.git*

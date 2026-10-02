@@ -252,7 +252,7 @@
 
 <footer id="creditsFooter">
   Aplicatiu desenvolupat per <a href="https://amanyosa.cat" target="_blank" rel="noopener">amanyosa.cat</a>
-  &middot; <a href="mailto:amanyosa@gmail.com">Contacte</a>
+  &middot; <a href="#" id="mailFoot">Contacte</a>
   &middot; <a href="https://buy.stripe.com/14AfZj0wWeYH3jzeSwa7C00" target="_blank" rel="noopener">♡ Convida'ns a un cafè</a>
 </footer>
 
@@ -287,7 +287,7 @@ const DB_MIN = -48, DB_MAX = 0; // rang de la gràfica en dB
 const FREQ_A = 220, FREQ_B = 660; // sons fixos de cada font (Hz)
 const PATTERN_SMOOTH = 6;    // velocitat de transició entre patrons (més alt = més ràpid)
 /* correu de contacte (ofuscat, es munta en fer clic) */
-const MAIL_USER = "contacte", MAIL_DOMAIN = "amanyosa.cat";
+const MAIL_USER = "amanyosa", MAIL_DOMAIN = "gmail.com";
 /* ========================================================= */
 
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -347,6 +347,7 @@ audioBtn.addEventListener('click', initAudio);
 document.getElementById('mailBtn').addEventListener('click', () => {
   location.href = 'mailto:' + MAIL_USER + '@' + MAIL_DOMAIN;
 });
+document.getElementById('mailFoot').href = 'mailto:' + MAIL_USER + '@' + MAIL_DOMAIN;
 const overlay = document.getElementById('overlay');
 document.getElementById('helpBtn').addEventListener('click', () => overlay.classList.add('open'));
 document.getElementById('modalClose').addEventListener('click', () => overlay.classList.remove('open'));
